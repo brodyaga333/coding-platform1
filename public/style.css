@@ -1,0 +1,162 @@
+/* --- Общие стили --- */
+body {
+    margin: 0;
+    font-family: Arial, sans-serif;
+    display: flex; /* Для размещения sidebar и контента рядом */
+}
+
+/* --- Сайдбар (боковая панель) --- */
+.sidebar {
+    width: 240px;
+    height: 100vh;
+    background: #2c3e50;
+    color: white;
+    padding: 20px;
+    position: fixed; /* Фиксируем слева, чтобы не прокручивался */
+    top: 0;
+    left: 0;
+    overflow-y: auto; /* Если много пунктов меню */
+    box-sizing: border-box;
+}
+
+/* Заголовок меню */
+.menu-header {
+    font-size: 1.2em;
+    font-weight: bold;
+    margin-bottom: 20px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid #34495e;
+}
+
+/* Элементы меню */
+.menu-item {
+    padding: 10px;
+    cursor: pointer;
+    margin: 5px 0;
+    border-radius: 4px;
+    transition: background 0.3s ease;
+}
+
+    .menu-item:hover {
+        background: #34495e;
+    }
+
+/* --- Основной контент --- */
+.content {
+    margin-left: 240px; /* Отступ слева под ширину sidebar */
+    padding: 20px;
+    width: calc(100% - 200px); /* Остальная ширина */
+    box-sizing: border-box;
+    min-height: 100vh; /* Чтобы контент занимал всю высоту */
+    background-color: #f9f9f9;
+}
+
+/* --- Задачи --- */
+.task {
+    background: white;
+    border-radius: 8px;
+    padding: 20px;
+    margin-bottom: 20px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+/* Текстовое поле с кодом */
+.code-editor {
+    width: 100%;
+    height: 150px;
+    font-family: monospace;
+    padding: 10px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    resize: vertical;
+    margin: 10px 0;
+}
+
+/* Кнопки */
+button {
+    background: #3498db;
+    color: white;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background 0.3s ease;
+}
+
+    button:hover {
+        background: #2980b9;
+    }
+
+/* --- Результаты проверки решения --- */
+.result {
+    margin-top: 15px;
+}
+
+.test-summary {
+    font-weight: bold;
+    margin-bottom: 10px;
+}
+
+.test-results {
+    margin-top: 10px;
+}
+
+/* Отдельный тест-кейс */
+.test-case {
+    padding: 10px;
+    margin-bottom: 10px;
+    border-radius: 4px;
+}
+
+/* Успешный тест */
+.passed {
+    background: #e8f5e9;
+    border-left: 3px solid #4caf50;
+}
+
+/* Проваленный тест */
+.failed {
+    background: #ffebee;
+    border-left: 3px solid #f44336;
+}
+
+/* Ошибки в тестах */
+.error {
+    color: #d32f2f;
+    font-family: monospace;
+}
+
+
+
+/* --- Метки сложности --- */
+.difficulty {
+    display: inline-block;
+    padding: 4px 8px;
+    border-radius: 12px;
+    font-size: 0.8em;
+    margin-bottom: 10px;
+}
+
+.beginner {
+    background: #27ae60;
+    color: white;
+}
+
+.intermediate {
+    background: #f1c40f;
+    color: black;
+}
+
+.expert {
+    background: #e74c3c;
+    color: white;
+}
+
+.compiler-box {
+    background: #f8f8f8;
+    border: 1px solid #ccc;
+    padding: 15px;
+    margin-top: 20px;
+    border-radius: 6px;
+}
+
