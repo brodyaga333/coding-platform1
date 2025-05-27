@@ -26,7 +26,9 @@ body {
     margin-bottom: 20px;
     padding-bottom: 10px;
     border-bottom: 1px solid #34495e;
+    text-align: center; /* Центрирование текста */
 }
+
 
 /* Элементы меню */
 .menu-item {
@@ -43,11 +45,12 @@ body {
 
 /* --- Основной контент --- */
 .content {
-    margin-left: 240px; /* Отступ слева под ширину sidebar */
+    margin-left: 240px; /* под левый sidebar */
+    margin-right: 200px; /* под правую панель профиля */
     padding: 20px;
-    width: calc(100% - 200px); /* Остальная ширина */
+    width: calc(100% - 240px - 230px); /* учёт обеих панелей */
     box-sizing: border-box;
-    min-height: 100vh; /* Чтобы контент занимал всю высоту */
+    min-height: 100vh;
     background-color: #f9f9f9;
 }
 
@@ -126,7 +129,45 @@ button {
     font-family: monospace;
 }
 
+.profile-sidebar {
+  position: fixed;
+  right: 0;
+  top: 0;
+  width: 200px;
+  height: 100%;
+  background-color: #f7f7f7;
+  border-left: 1px solid #ccc;
+  padding: 20px;
+  box-shadow: -2px 0 5px rgba(0, 0, 0, 0.05);
+}
 
+.profile {
+  position: relative;
+}
+
+.username {
+  font-weight: bold;
+  cursor: pointer;
+}
+
+.profile-details {
+  display: none;
+  position: absolute;
+  top: 20px;
+  left: 0;
+  background-color: white;
+  border: 1px solid #ccc;
+  padding: 10px;
+  width: 180px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+  z-index: 10;
+}
+
+
+.menu-item.selected {
+  background-color: #ddd;
+  font-weight: bold;
+}
 
 /* --- Метки сложности --- */
 .difficulty {
@@ -160,3 +201,41 @@ button {
     border-radius: 6px;
 }
 
+#profile-details {
+    display: none;
+    position: absolute;
+    background-color: white;
+    padding: 10px;
+    border: 1px solid #ccc;
+}
+
+/* Добавьте в конец файла */
+#admin-panel {
+    background: #f5f5f5;
+    padding: 20px;
+    margin: 20px 0;
+    border-radius: 5px;
+}
+
+.test-case {
+    display: flex;
+    gap: 10px;
+    margin: 10px 0;
+    align-items: center;
+}
+
+.test-case input {
+    flex: 1;
+    padding: 5px;
+}
+
+#add-task-form {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+#add-task-form textarea {
+    min-height: 100px;
+    padding: 10px;
+}

@@ -2,38 +2,111 @@
 <html lang="ru">
 <head>
   <meta charset="UTF-8">
-  <title>Онлайн-платформа задач</title>
-  <link rel="stylesheet" href="style.css">
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/codemirror@5.65.16/lib/codemirror.css">
+  <title>Вход и регистрация</title>
   <style>
-    .CodeMirror {
-      border: 1px solid #ccc;
-      font-size: 14px;
-      height: auto;
+    body {
+      font-family: Arial;
+      display: flex;
+      justify-content: center;
+      margin-top: 50px;
     }
-    .task {
-      margin-bottom: 40px;
+    .container {
+      width: 300px;
     }
-    select {
+    .form {
+      display: none;
+      flex-direction: column;
+    }
+    .form.active {
+      display: flex;
+    }
+    .message {
       margin-top: 10px;
+      color: red;
     }
   </style>
 </head>
 <body>
-  <div class="sidebar">
-    <div class="menu-header">Задачи по программированию</div>
-    <div class="menu-item" onclick="loadTasks('beginner')">Начинающий</div>
-    <div class="menu-item" onclick="loadTasks('intermediate')">Продвинутый</div>
-    <div class="menu-item" onclick="loadTasks('expert')">Эксперт</div>
+  <div class="container">
+    <div>
+      <button onclick="showForm('login')">Вход</button>
+      <button onclick="showForm('register')">Регистрация</button>
+    </div>
+
+    <form id="login-form" class="form active" onsubmit="login(event)">
+      <h2>Вход</h2>
+      <input type="text" placeholder="Имя пользователя" name="username" required>
+      <input type="password" placeholder="Пароль" name="password" required>
+      <button type="submit">Войти</button>
+      <div class="message" id="login-msg"></div>
+    </form>
+
+    <form id="register-form" class="form" onsubmit="register(event)">
+      <h2>Регистрация</h2>
+      <input type="text" placeholder="Имя пользователя" name="username" required>
+      <input type="password" placeholder="Пароль" name="password" required>
+      <button type="submit">Зарегистрироваться</button>
+      <div class="message" id="register-msg"></div>
+    </form>
   </div>
 
-  <div class="content">
-    <div class="tasks-container" id="tasks-container"></div>
-  </div>
+  <script>
+    function showForm(form) {
+      document.getElementById('login-form').classList.remove('active');
+      document.getElementById('register-form').classList.remove('active');
+      document.getElementById(`${form}-form`).classList.add('active');
 
-  <script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.16/lib/codemirror.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.16/mode/python/python.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.16/mode/clike/clike.js"></script>
-  <script src="script.js"></script>
+      document.getElementById('login-msg').textContent = '';
+      document.getElementById('register-msg').textContent = '';
+    }
+
+    async function login(e) {
+      e.preventDefault();
+      const form = e.target;
+      const data = {
+        username: form.username.value,
+        password: form.password.value
+      };
+
+      const res = await fetch('/api/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      });
+
+      const msg = document.getElementById('login-msg');
+      if (res.ok) {
+        window.location.href = '/tasks.html'; // переход на главную после входа
+      } else {
+        const err = await res.json();
+        msg.textContent = err.error || 'Ошибка входа';
+      }
+    }
+
+    async function register(e) {
+      e.preventDefault();
+      const form = e.target;
+      const data = {
+        username: form.username.value,
+        password: form.password.value
+      };
+
+      const res = await fetch('/api/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      });
+
+      const msg = document.getElementById('register-msg');
+      if (res.ok) {
+        msg.style.color = 'green';
+        msg.textContent = 'Успешно зарегистрировано. Теперь войдите.';
+        showForm('login');
+      } else {
+        const err = await res.json();
+        msg.textContent = err.error || 'Ошибка регистрации';
+      }
+    }
+  </script>
 </body>
 </html>
