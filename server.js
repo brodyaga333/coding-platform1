@@ -5,7 +5,7 @@ const path = require('path');
 const { sequelize, Problem } = require('./models');
 require('dotenv').config();
 const axios = require('axios');
-const { Task, TestCase } = require('./models'); // если нужно, поправим путь
+
 
 async function start() {
     try {
@@ -30,106 +30,130 @@ async function start() {
         });
 
 
-    app.post('/api/jdoodle', async (req, res) => {
-        const { code, input, language } = req.body;
-
-        const payload = {
-            clientId: process.env.JDOODLE_CLIENT_ID,
-            clientSecret: process.env.JDOODLE_CLIENT_SECRET,
-            script: code,
-            language,
-            versionIndex: getVersionIndex(language),
-            stdin: input || ''
-        };
+    app.post('/api/judge0', async (req, res) => {
+        const { code, input, language_id } = req.body;
 
         try {
-            const response = await fetch('https://api.jdoodle.com/v1/execute', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
-            });
+            const response = await axios.post(
+                'http://localhost:2358/submissions?base64_encoded=false&wait=true',
+                {
+                    source_code: code,
+                    stdin: input || '',
+                    language_id
+                },
+                {
+                    headers: { 'Content-Type': 'application/json' }
+                }
+            );
 
-            const data = await response.json();
-            res.json(data);
-        } catch (err) {
-            console.error('JDoodle API error:', err);
-            res.status(500).json({ error: 'Ошибка при выполнении кода через JDoodle' });
+            res.json(response.data);
+        } catch (error) {
+            console.error('Ошибка при работе с Judge0:', error.message);
+            res.status(500).json({ error: 'Ошибка выполнения через Judge0' });
         }
     });
 
-    // вспомогательная функция
-    function getVersionIndex(lang) {
-        const map = {
-            python3: '4',
-            java: '4',
-            cpp: '5',
-            c: '5'
-        };
-        return map[lang] || '0';
+
+    function normalizeOutput(output) {
+        if (typeof output === 'object') {
+            output = JSON.stringify(output);
+        }
+        return String(output).trim().replace(/\r/g, '').replace(/\s+$/gm, '');
     }
 
-    app.post('/run-tests/:taskId', async (req, res) => {
-    const { code, language } = req.body;
-    const { taskId } = req.params;
 
-    try {
-        const task = await Task.findByPk(taskId);
-        if (!task || task.type !== 'code') {
-        return res.status(400).json({ error: 'Неверный тип задачи или задача не найдена' });
-        }
-
-        const testCases = await TestCase.findAll({ where: { taskId } });
-
-        const languageMap = {
-        cpp: 'cpp17',
-        c: 'c',
-        java: 'java',
-        python3: 'python3'
-        };
-
-        const results = [];
-
-        for (const testCase of testCases) {
-        const payload = {
-            script: code,
-            language: languageMap[language],
-            versionIndex: '0',
-            stdin: testCase.input,
-            clientId: process.env.JDOODLE_CLIENT_ID,
-            clientSecret: process.env.JDOODLE_CLIENT_SECRET
-        };
+    app.post('/api/run-task-tests/:taskId', async (req, res) => {
+        const { taskId } = req.params;
+        const { code, language, input } = req.body;
 
         try {
-            const { data } = await axios.post('https://api.jdoodle.com/v1/execute', payload);
-            const cleanedOutput = (data.output || '').trim();
-            const expected = testCase.output.trim();
+            // Получаем задачу из базы
+            const task = await Problem.findByPk(taskId);
+            if (!task) return res.status(404).json({ error: 'Задача не найдена' });
 
-            results.push({
-            input: testCase.input,
-            output: cleanedOutput,
-            expected,
-            passed: cleanedOutput === expected
-            });
+            // Парсим тесты из БД
+           let testCases = task.testCases;
+            if (!Array.isArray(testCases)) {
+                return res.status(500).json({ error: 'testCases должно быть массивом' });
+            }
+
+            // Функция для преобразования входных данных теста в строку для stdin
+            function prepareInput(inputVal) {
+            if (Array.isArray(inputVal)) {
+                return inputVal.join(' ') + '\n';
+            } else if (typeof inputVal === 'object' && inputVal !== null) {
+                return Object.values(inputVal).join(' ') + '\n';
+            } else {
+                return String(inputVal) + '\n';
+            }
+            }
+
+           
+
+            // Иначе запускаем все тесты из БД
+            const results = [];
+            for (const test of testCases) {
+                const testInput = prepareInput(test.input);
+                const expectedOutput = normalizeOutput(test.expected);
+
+                const actualOutput = normalizeOutput(await runCodeOnJudge0({ code, language, input: testInput }));
+                
+                const passed = expectedOutput === actualOutput;
+                
+                results.push({
+                    input: testInput.trim(),
+                    expected: expectedOutput,
+                    output: actualOutput.trim(),
+                    passed
+                });
+            }
+            
+
+            res.json(results);
+
         } catch (err) {
-            results.push({
-            input: testCase.input,
-            output: 'Ошибка компиляции или JDoodle',
-            expected: testCase.output.trim(),
-            passed: false
-            });
+            console.error(err);
+            res.status(500).json({ error: 'Внутренняя ошибка сервера' });
         }
-        }
-
-        res.json(results);
-    } catch (error) {
-        console.error(error);
-        res.status(500).json({ error: 'Ошибка сервера' });
-    }
     });
+
 
 
     
 
+
+
+    async function runCodeOnJudge0({ code, language, input }) {
+        const languageMap = {
+            python3: 71,
+            java: 62,
+            cpp: 54,
+            c: 50
+        };
+
+        const language_id = languageMap[language.toLowerCase()] || 71;
+
+        try {
+            const response = await axios.post(
+            'http://localhost:2358/submissions?base64_encoded=false&wait=true',
+            {
+                source_code: code,
+                stdin: input || '',
+                language_id
+            },
+            { headers: { 'Content-Type': 'application/json' } }
+            );
+
+            if (response.data.stdout !== null) return response.data.stdout;
+            if (response.data.compile_output) return response.data.compile_output;
+            if (response.data.stderr) return response.data.stderr;
+
+            return '';
+        } catch (err) {
+            console.error('Ошибка Judge0:', err.message);
+            throw new Error('Ошибка вызова Judge0');
+        }
+    }
 
 
         // Статические файлы

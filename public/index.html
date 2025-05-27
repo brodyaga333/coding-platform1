@@ -1,24 +1,39 @@
 <!DOCTYPE html>
 <html lang="ru">
 <head>
-    <meta charset="UTF-8">
-    <title>Платформа задач</title>
-    <link rel="stylesheet" href="style.css">
+  <meta charset="UTF-8">
+  <title>Онлайн-платформа задач</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/codemirror@5.65.16/lib/codemirror.css">
+  <style>
+    .CodeMirror {
+      border: 1px solid #ccc;
+      font-size: 14px;
+      height: auto;
+    }
+    .task {
+      margin-bottom: 40px;
+    }
+    select {
+      margin-top: 10px;
+    }
+  </style>
 </head>
 <body>
-    <div class="sidebar">
-        <div class="menu-header">Задачи по программированию</div>
-        <div class="menu-item" onclick="loadTasks('beginner')">Начинающий</div>
-        <div class="menu-item" onclick="loadTasks('intermediate')">Средний</div>
-        <div class="menu-item" onclick="loadTasks('expert')">Эксперт</div>
-    </div>
+  <div class="sidebar">
+    <div class="menu-header">Задачи по программированию</div>
+    <div class="menu-item" onclick="loadTasks('beginner')">Начинающий</div>
+    <div class="menu-item" onclick="loadTasks('intermediate')">Продвинутый</div>
+    <div class="menu-item" onclick="loadTasks('expert')">Эксперт</div>
+  </div>
 
-    <div class="content">
-        <div class="tasks-container" id="tasks-container"></div>
-    </div>
+  <div class="content">
+    <div class="tasks-container" id="tasks-container"></div>
+  </div>
 
-    <!-- JDoodle embed script -->
-    <script src="https://www.jdoodle.com/assets/jdoodle-pym.min.js' type='text/javascript" type="text/javascript"></script>
-    <script src="script.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.16/lib/codemirror.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.16/mode/python/python.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.16/mode/clike/clike.js"></script>
+  <script src="script.js"></script>
 </body>
 </html>
