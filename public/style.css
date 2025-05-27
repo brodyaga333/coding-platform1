@@ -211,10 +211,30 @@ button {
 
 /* Добавьте в конец файла */
 #admin-panel {
-    background: #f5f5f5;
-    padding: 20px;
-    margin: 20px 0;
-    border-radius: 5px;
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 600px; /* фиксированная ширина */
+  max-width: 90vw; /* адаптация под маленькие экраны */
+  max-height: 90vh; /* не вылазить за экран */
+  overflow-y: auto; /* прокрутка при необходимости */
+  background: #fff;
+  padding: 20px;
+  border-radius: 10px;
+  border: 2px solid #444;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+  z-index: 1000;
+}
+
+#admin-panel-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.4);
+  z-index: 999;
 }
 
 .test-case {
@@ -236,6 +256,34 @@ button {
 }
 
 #add-task-form textarea {
-    min-height: 100px;
+    min-height: 80px;
     padding: 10px;
+}
+
+#open-admin-btn {
+  background: #444;
+  color: #fff;
+  border: none;
+  padding: 10px;
+  cursor: pointer;
+  width: 100%;
+  text-align: left;
+  font-size: 14px;
+}
+#open-admin-btn:hover {
+  background: #666;
+}
+
+.admin-button {
+  margin-top: 10px;
+  padding: 2px;
+  background: #444;
+  color: white;
+  text-align: center;
+  cursor: pointer;
+  border-radius: 4px;
+}
+
+.admin-button:hover {
+  background-color: #666;
 }

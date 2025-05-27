@@ -93,6 +93,26 @@ async function start() {
             }
         });
 
+        app.post('/api/add-problem', isAuthenticated, isAdmin, async (req, res) => {
+            try {
+                const { title, description, templateCode, testCases, difficulty } = req.body;
+
+                const problem = await Problem.create({
+                    title,
+                    description,
+                    templateCode,
+                    testCases,
+                    difficulty
+                });
+
+                res.status(201).json(problem);
+            } catch (error) {
+                console.error(error);
+                res.status(500).json({ error: 'Ошибка при добавлении задачи' });
+            }
+        });
+
+
         app.post('/api/run-task-tests/:taskId', async (req, res) => {
             const { taskId } = req.params;
             const { code, language, input } = req.body;

@@ -19,6 +19,7 @@ function getLanguageMode(lang) {
   return map[lang] || 'python';
 }
 
+// загрузка задач
 async function loadTasks(difficulty = 'beginner') {
   const container = document.getElementById('tasks-container');
   container.innerHTML = 'Загрузка задач...';
@@ -100,6 +101,7 @@ function updateEditorMode(taskId) {
     if (editor) editor.setOption('mode', mode);
 }
 
+// компиляция через Judge0
 async function compileWithJudge0(taskId) {
   const code = editors[taskId]?.getValue() || '';
   const language = document.getElementById(`gen-lang-${taskId}`).value;
@@ -181,6 +183,14 @@ async function checkAuth() {
     localStorage.setItem('score', score);
     localStorage.setItem('nextLevel', nextLevelThreshold);
 
+    if (user.role === 'admin') {
+      const openBtn = document.getElementById('open-admin-btn');
+      openBtn.style.display = 'block';
+
+      openBtn.addEventListener('click', showAdminPanel); // ✅ Показывать форму только при клике
+      document.getElementById('add-task-form').addEventListener('submit', handleAddTask);
+    }
+
     return true;
 }
 
@@ -203,8 +213,13 @@ function computeLevel(score) {
 
 // функции для admin
 function showAdminPanel() {
-    const adminPanel = document.getElementById('admin-panel');
-    if (adminPanel) adminPanel.style.display = 'block';
+  document.getElementById('admin-panel').style.display = 'block';
+  document.getElementById('admin-panel-overlay').style.display = 'block';
+}
+
+function closeAdminPanel() {
+  document.getElementById('admin-panel').style.display = 'none';
+  document.getElementById('admin-panel-overlay').style.display = 'none';
 }
 
 function addTestCase() {
@@ -225,51 +240,33 @@ function removeTestCase(button) {
 
 async function handleAddTask(e) {
     e.preventDefault();
-    
-    // Собираем тесты
-    const testCases = [];
-    document.querySelectorAll('.test-case').forEach(testEl => {
-        const input = testEl.querySelector('.test-input').value;
-        const expected = testEl.querySelector('.test-expected').value;
-        if (input && expected) {
-            testCases.push({ input, expected });
-        }
-    });
 
-    if (testCases.length === 0) {
-        alert('Добавьте хотя бы один тестовый случай');
+    const form = e.target;
+    const formData = new FormData(form);
+    const data = Object.fromEntries(formData.entries());
+
+    try {
+        data.testCases = JSON.parse(data.testCases);
+    } catch (err) {
+        alert('Ошибка в JSON тестов');
         return;
     }
 
-    const taskData = {
-        title: document.getElementById('task-title').value,
-        description: document.getElementById('task-description').value,
-        templateCode: document.getElementById('task-template').value,
-        testCases: testCases,
-        difficulty: document.getElementById('task-difficulty').value
-    };
+    const res = await fetch('/api/add-problem', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(data)
+    });
 
-    try {
-        const res = await fetch('/api/problems', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${localStorage.getItem('token')}`
-            },
-            body: JSON.stringify(taskData)
-        });
+    const result = await res.json();
 
-        if (res.ok) {
-            alert('Задача успешно добавлена!');
-            document.getElementById('add-task-form').reset();
-            loadTasks(taskData.difficulty);
-        } else {
-            const err = await res.json();
-            alert(`Ошибка: ${err.error}`);
-        }
-    } catch (err) {
-        console.error(err);
-        alert('Ошибка при добавлении задачи');
+    const resultDiv = document.getElementById('add-problem-result');
+    if (res.ok) {
+        resultDiv.textContent = '✅ Задача успешно добавлена!';
+        form.reset();
+    } else {
+        resultDiv.textContent = '❌ Ошибка: ' + (result.error || 'неизвестная');
     }
 }
 
@@ -296,6 +293,13 @@ window.onload = async () => {
   const authorized = await checkAuth();
   if (authorized) {
     loadTasks('beginner');
+
+    // Назначаем обработчик только если форма уже есть
+    const form = document.getElementById('add-task-form');
+    if (form) {
+      form.addEventListener('submit', handleAddTask);
+    }
+
   }
 };
 

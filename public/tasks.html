@@ -17,6 +17,35 @@
     select {
       margin-top: 10px;
     }
+    #admin-panel {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: #fff;
+      padding: 20px;
+      border: 2px solid #444;
+      display: none;
+      z-index: 1000;
+    }
+    #admin-panel-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(0, 0, 0, 0.5);
+      display: none;
+      z-index: 999;
+    }
+    .admin-button {
+      padding: 10px;
+      background: #444;
+      color: white;
+      cursor: pointer;
+      text-align: center;
+      margin: 20px;
+    }
   </style>
 </head>
 <body>
@@ -38,10 +67,46 @@
     <div class="menu-item" onclick="loadTasks('beginner')">Начинающий</div>
     <div class="menu-item" onclick="loadTasks('intermediate')">Продвинутый</div>
     <div class="menu-item" onclick="loadTasks('expert')">Эксперт</div>
+
+    <button id="open-admin-btn" style="display:none;">➕ Добавить задачу</button>
+      
   </div>
     
   <div class="content">
     <div class="tasks-container" id="tasks-container"></div>
+    
+  </div>
+
+  
+
+  <div id="admin-panel-overlay" class="overlay" style="display:none;"></div>
+  <div id="admin-panel" class="modal" style="display:none;">
+    <form id="add-task-form">
+      <h3>Добавление новой задачи</h3>
+
+      <label>Название:</label><br>
+      <input type="text" name="title" required><br><br>
+
+      <label>Описание:</label><br>
+      <textarea name="description" rows="4" required></textarea><br><br>
+
+      <label>Код-шаблон:</label><br>
+      <textarea name="templateCode" rows="4" required></textarea><br><br>
+
+      <label>Сложность:</label><br>
+      <select name="difficulty" required>
+        <option value="beginner">Начинающий</option>
+        <option value="intermediate">Продвинутый</option>
+        <option value="expert">Эксперт</option>
+      </select><br><br>
+
+      <label>Тесты (JSON массив):</label><br>
+      <textarea name="testCases" rows="6" required>[{"input": [1, 2], "expected": 3}]</textarea><br><br>
+
+      <button type="submit">Добавить</button>
+      <div id="add-problem-result" style="margin-top:10px;"></div>
+    </form>
+    <button onclick="closeAdminPanel()">Закрыть</button>
   </div>
 
 
