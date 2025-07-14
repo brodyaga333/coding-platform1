@@ -3,34 +3,127 @@
 <head>
   <meta charset="UTF-8">
   <title>Вход и регистрация</title>
-  <style>
+    <style>
     body {
-      font-family: Arial;
+      font-family: Arial, sans-serif;
+      margin: 0;
+      height: 100vh;
+      background-image: url('images/background.jpg');
+      background-size: cover;
+      background-position: center;
+      background-repeat: no-repeat;
+
       display: flex;
       justify-content: center;
-      margin-top: 50px;
+      align-items: center;
+      position: relative;
     }
+
+    body::before {
+      content: "";
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background-color: rgba(0, 0, 0, 0.4); /* черный с прозрачностью */
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    
+
     .container {
-      width: 300px;
+      background: white;
+      padding: 30px;
+      border-radius: 12px;
+      box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15);
+      width: 320px;
+      box-sizing: border-box;
+      transition: all 0.3s ease;
+      position: relative;
+      z-index: 1;
+      
     }
+
+    .container h2 {
+      margin-top: 0;
+      margin-bottom: 20px;
+      font-size: 22px;
+      text-align: center;
+    }
+
     .form {
       display: none;
       flex-direction: column;
     }
+
     .form.active {
       display: flex;
     }
+
+    input {
+      padding: 10px;
+      margin-bottom: 12px;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+      font-size: 14px;
+    }
+
+    button {
+      padding: 10px;
+      background-color: #007bff;
+      border: none;
+      color: white;
+      font-size: 15px;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: background 0.3s ease;
+    }
+
+    button:hover {
+      background-color: #0056b3;
+    }
+
+    .toggle-buttons {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 20px;
+    }
+
+    .toggle-buttons button {
+      width: 48%;
+      background-color: #e0e0e0;
+      color: #333;
+    }
+
+    .toggle-buttons button.active {
+      background-color: #007bff;
+      color: white;
+    }
+
     .message {
       margin-top: 10px;
-      color: red;
+      font-size: 14px;
+      min-height: 18px;
+    }
+
+    .bg-image {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background-image: url('images/background.png');
+      background-size: cover;
+      background-position: center;
+      background-repeat: no-repeat;
+      filter: brightness(0.6);
+      z-index: -1; /* чтобы лежало под остальным */
     }
   </style>
+
 </head>
 <body>
+  <div class="bg-image"></div>
   <div class="container">
-    <div>
-      <button onclick="showForm('login')">Вход</button>
-      <button onclick="showForm('register')">Регистрация</button>
+    <div class="toggle-buttons">
+      <button id="btn-login" onclick="showForm('login')" class="active">Вход</button>
+      <button id="btn-register" onclick="showForm('register')">Регистрация</button>
     </div>
 
     <form id="login-form" class="form active" onsubmit="login(event)">
@@ -58,6 +151,11 @@
 
       document.getElementById('login-msg').textContent = '';
       document.getElementById('register-msg').textContent = '';
+
+      // Кнопки-переключатели
+      document.getElementById('btn-login').classList.remove('active');
+      document.getElementById('btn-register').classList.remove('active');
+      document.getElementById(`btn-${form}`).classList.add('active');
     }
 
     async function login(e) {

@@ -183,6 +183,12 @@ async function checkAuth() {
     localStorage.setItem('score', score);
     localStorage.setItem('nextLevel', nextLevelThreshold);
 
+    // Здесь вставь путь к картинке уровня:
+    const levelImg = document.getElementById('profile-level-img');
+    // Предположим, что у тебя картинки лежат в /images/levels/level1.png, level2.png и т.д.
+    levelImg.src = `/images/levels/level${level}.png`;
+    levelImg.alt = `Уровень ${level}`;
+
     if (user.role === 'admin') {
       const openBtn = document.getElementById('open-admin-btn');
       openBtn.style.display = 'block';
@@ -285,15 +291,36 @@ function hideProfile() {
 
 
 
+function setupProfileToggle() {
+  const miniProfile = document.getElementById('mini-profile');
+  const fullProfile = document.getElementById('full-profile');
+  const closeBtn = document.getElementById('close-profile');
 
+  miniProfile.addEventListener('click', () => {
+    fullProfile.classList.toggle('hidden');
+  });
+
+  closeBtn.addEventListener('click', () => {
+    fullProfile.classList.add('hidden');
+  });
+
+  // Закрытие по клику вне
+  document.addEventListener('click', (event) => {
+    if (!fullProfile.contains(event.target) && !miniProfile.contains(event.target)) {
+      fullProfile.classList.add('hidden');
+    }
+  });
+}
 
 
 
 window.onload = async () => {
+  ;
   const authorized = await checkAuth();
   if (authorized) {
     loadTasks('beginner');
 
+    
     // Назначаем обработчик только если форма уже есть
     const form = document.getElementById('add-task-form');
     if (form) {

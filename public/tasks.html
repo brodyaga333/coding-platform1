@@ -51,14 +51,22 @@
 <body>
     <div class="profile-sidebar">
         <div class="profile">
-            <div class="username" onmouseover="showProfile()" onmouseout="hideProfile()">
-            <span id="profile-username">...</span>
-                <div class="profile-details" id="profile-details">
-                    <p>Уровень: <span id="profile-level">-</span></p>
-                    <p>Очки: <span id="profile-score">-</span></p>
-                    <p>До следующего уровня: <span id="profile-next">-</span></p>
-                </div>
+          <h2 class="profile-title">Профиль</h2>
+          <div class="profile-info">
+            <div id="profile-username">...</div>
+
+            <div class="profile-level-line">
+              <span>Level:</span>
+              <img id="profile-level-img" src="" alt="Уровень" class="level-icon" />
             </div>
+            <div class="profile-score-line">Exp: <span id="profile-score">-</span></div>
+
+          </div>
+          <div class="profile-details" id="profile-details">
+            <p>Уровень: <span id="profile-level">-</span></p>
+            <p>Очки: <span id="profile-score">-</span></p>
+            <p>До следующего уровня: <span id="profile-next">-</span></p>
+          </div>
         </div>
     </div>
 
