@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <title>Группы - Учебный планировщик</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    :root {
+      --primary: #3498db;
+      --card-bg: #fff;
+      --text: #333;
+    }
+    body {
+      margin: 0;
+      font-family: 'Segoe UI', sans-serif;
+      color: var(--text);
+      background: #f9f9f9;
+    }
+    .container {
+      display: flex;
+      min-height: 100vh;
+    }
+    .sidebar {
+      width: 250px;
+      background: #2c3e50;
+      color: white;
+      padding: 20px 0;
+      position: fixed;
+      left: 0;
+      top: 0;
+      bottom: 0;
+    }
+    .sidebar-header { padding:0 20px 20px; border-bottom:1px solid #34495e; }
+    .sidebar-menu { padding:20px 0; }
+    .menu-item { padding:12px 20px; cursor:pointer; }
+    .menu-item:hover, .menu-item.active { background:#34495e; }
+    .main-content {
+      flex: 1;
+      margin-left: 250px;
+      padding: 20px;
+    }
+    .header { display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; }
+    .header-title { font-size:24px; font-weight:600; }
+    .btn { padding:10px 20px; border:none; border-radius:6px; cursor:pointer; font-weight:500; }
+    .btn-primary { background:var(--primary); color:white; }
+    #groups-container { display:grid; grid-template-columns:repeat(auto-fill,minmax(250px,1fr)); gap:20px; }
+    .group-card { background: var(--card-bg); border-radius:8px; padding:16px; box-shadow:0 2px 8px rgba(0,0,0,0.1); display:flex; flex-direction:column; }
+    .group-title { font-size:18px; font-weight:600; margin-bottom:10px; }
+    .group-members { font-size:14px; color:#555; }
+    .group-actions { margin-top:10px; text-align:right; }
+    .modal { display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.5); align-items:center; justify-content:center; z-index:1000; }
+    .modal-content { background:white; padding:20px; border-radius:8px; width:90%; max-width:400px; }
+    .close-btn { background:none; border:none; font-size:24px; float:right; cursor:pointer; }
+    .form-group { margin-bottom:15px; }
+    .form-group label { display:block; margin-bottom:5px; }
+    .form-group select { width:100%; height:120px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="sidebar">
+      <div class="sidebar-header"><h2>Учебный планировщик</h2></div>
+      <div class="sidebar-menu">
+        <div class="menu-item"><a href="/tasks.html" style="color:inherit; text-decoration:none;"><i class="fas fa-tasks"></i> Задачи</a></div>
+        <div class="menu-item"><a href="/subjects.html" style="color:inherit; text-decoration:none;"><i class="fas fa-book"></i> Предметы</a></div>
+        <div class="menu-item active"><a href="/groups.html" style="color:inherit; text-decoration:none;"><i class="fas fa-users"></i> Группы</a></div>
+        <div class="menu-item"><a href="/progress.html" style="color:inherit; text-decoration:none;"><i class="fas fa-chart-line"></i> Прогресс</a></div>
+      </div>
+    </div>
+    <div class="main-content">
+      <div class="header">
+        <h1 class="header-title">Группы студентов</h1>
+        <button id="add-group-btn" class="btn btn-primary" style="display:none;"><i class="fas fa-plus"></i> Новая группа</button>
+      </div>
+      <div id="groups-container"></div>
+    </div>
+  </div>
+  <div id="modal-overlay" class="modal">
+    <div class="modal-content">
+      <button id="close-group-modal" class="close-btn">&times;</button>
+      <h2 id="modal-title">Новая группа</h2>
+      <form id="group-form">
+        <div class="form-group">
+          <label for="group-name">Название группы</label>
+          <input id="group-name" type="text" required>
+        </div>
+        <div class="form-group">
+          <label for="group-users">Выбрать студентов</label>
+          <select id="group-users" multiple required></select>
+        </div>
+        <button type="submit" class="btn btn-primary">Сохранить</button>
+      </form>
+    </div>
+  </div>
+  <script>
+    let currentUser;
+    let editGroupId = null;
+
+    async function checkAuth() {
+      const res = await fetch('/api/me', { credentials: 'include' });
+      if (!res.ok) location.href = '/auth.html';
+      const user = await res.json();
+      currentUser = user;
+      if (user.role === 'teacher' || user.role === 'admin') {
+        document.getElementById('add-group-btn').style.display = 'inline-block';
+      }
+    }
+
+    async function loadGroups() {
+  try {
+    const res = await fetch('/api/groups', { credentials: 'include' });
+    if (!res.ok) throw new Error('Не удалось загрузить группы');
+    const groups = await res.json();
+    const container = document.getElementById('groups-container');
+    container.innerHTML = groups.map(g => {
+      const isMyGroup = Array.isArray(g.Users) && g.Users.some(u => u.id === currentUser.id);
+      const userList = g.Users.map(u => u.username).join(', ');
+      return `
+        <div class="group-card">
+          <div class="group-title">${g.name}</div>
+          <div class="group-members"><strong>Участники:</strong> ${userList}</div>
+          ${(currentUser.role === 'teacher' || currentUser.role === 'admin') ? `
+          <div class="group-actions">
+            <button onclick="openEditModal(${g.id}, '${g.name}', [${g.Users.map(u => u.id)}])" class="btn btn-primary btn-sm">Редактировать</button>
+          </div>` : (isMyGroup ? '<div class="group-actions"><em>Вы участник этой группы</em></div>' : '')}
+        </div>
+      `;
+    }).join('');
+  } catch (err) {
+    console.error(err);
+    alert('Не удалось загрузить группы');
+  }
+}
+
+
+    async function loadStudentsSelect(selected=[]) {
+      const res = await fetch('/api/users', { credentials: 'include' });
+      const users = await res.json();
+      const sel = document.getElementById('group-users');
+      sel.innerHTML = users
+        .filter(u => u.role === 'student')
+        .map(u => `<option value="${u.id}" ${selected.includes(u.id) ? 'selected' : ''}>${u.username}</option>`)
+        .join('');
+    }
+
+    function openEditModal(id=null, name='', users=[]) {
+      editGroupId = id;
+      document.getElementById('modal-title').textContent = id ? 'Редактирование группы' : 'Новая группа';
+      document.getElementById('group-name').value = name;
+      loadStudentsSelect(users);
+      document.getElementById('modal-overlay').style.display = 'flex';
+    }
+
+    function closeModal() {
+      document.getElementById('modal-overlay').style.display = 'none';
+    }
+
+    async function handleGroupSubmit(e) {
+      e.preventDefault();
+      const name = document.getElementById('group-name').value.trim();
+      const userIds = Array.from(document.getElementById('group-users').selectedOptions).map(o => +o.value);
+      let url, method, body;
+      if (editGroupId) {
+        url = `/api/groups/${editGroupId}/users`;
+        method = 'PUT';
+        body = { userIds };
+      } else {
+        url = '/api/groups';
+        method = 'POST';
+        body = { name };
+      }
+      const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify(body) });
+      if (res.ok) {
+        closeModal();
+        loadGroups();
+      } else {
+        alert('Ошибка при сохранении группы');
+      }
+    }
+
+    window.addEventListener('DOMContentLoaded', async () => {
+      await checkAuth();
+      document.getElementById('add-group-btn').addEventListener('click', () => openEditModal());
+      document.getElementById('close-group-modal').addEventListener('click', closeModal);
+      document.getElementById('group-form').addEventListener('submit', handleGroupSubmit);
+      loadGroups();
+    });
+  </script>
+</body>
+</html>

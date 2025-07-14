@@ -1,5 +1,16 @@
+'use strict';
+const { Model } = require('sequelize');
+
 module.exports = (sequelize, DataTypes) => {
-  return sequelize.define("User", {
+  class User extends Model {
+    static associate(models) {
+      this.belongsToMany(models.Subject, { through: 'UserSubjects' });
+      this.hasMany(models.Task, { as: 'authoredTasks', foreignKey: 'authorId' });
+      this.hasMany(models.Task, { as: 'assignedTasks', foreignKey: 'assignedToId' });
+    }
+  }
+  
+  User.init({
     username: {
       type: DataTypes.STRING,
       unique: true,
@@ -13,13 +24,18 @@ module.exports = (sequelize, DataTypes) => {
       allowNull: false
     },
     role: {
-      type: DataTypes.ENUM('user', 'admin'),
-      defaultValue: 'user'
+      type: DataTypes.ENUM('student', 'teacher', 'admin'),
+      defaultValue: 'student'
     },
     score: {
-        type: DataTypes.INTEGER,
-        defaultValue: 0,
-        allowNull: false
+      type: DataTypes.INTEGER,
+      defaultValue: 0,
+      allowNull: false
     }
+  }, {
+    sequelize,
+    modelName: 'User',
   });
+  
+  return User;
 };

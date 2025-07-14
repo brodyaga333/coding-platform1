@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <title>Предметы - Учебный планировщик</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    /* Дополнительная стилизация для карточек предметов */
+    
+    
+    .subject-card {
+      background: var(--card-bg);
+      border-radius: 8px;
+      padding: 20px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      cursor: pointer;
+      transition: transform 0.2s;
+      text-align: center;
+    }
+    .subject-card:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 4px 15px rgba(0,0,0,0.15);
+    }
+    .subject-title {
+      font-size: 18px;
+      font-weight: 600;
+      margin-bottom: 8px;
+    }
+    .subject-info {
+      font-size: 14px;
+      color: #666;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <!-- Сайдбар -->
+    <div class="sidebar">
+      <div class="sidebar-header"><h2>Учебный планировщик</h2></div>
+      <div class="sidebar-menu">
+        <div class="menu-item"><a href="/tasks.html" style="color:inherit;text-decoration:none;"><i class="fas fa-tasks"></i> Задачи</a></div>
+        <div class="menu-item active"><a href="/subjects.html" style="color:inherit;text-decoration:none;"><i class="fas fa-book"></i> Предметы</a></div>
+        <div class="menu-item "><a href="/groups.html" style="color:inherit;text-decoration:none;"><i class="fas fa-users"></i> Группы</a></div>
+        <div class="menu-item"><a href="/progress.html" style="color:inherit;text-decoration:none;"><i class="fas fa-chart-line"></i> Прогресс</a></div>
+      </div>
+    </div>
+    <!-- Основное содержимое -->
+    <div class="main-content">
+      <div class="header">
+        <h1 class="header-title">Предметы</h1>
+        <button id="add-subject-btn" class="btn btn-primary"><i class="fas fa-plus"></i> Добавить предмет</button>
+      </div>
+      <div class="tasks-grid" id="subjects-container">
+        <!-- Здесь будут карточки предметов -->
+      </div>
+    </div>
+  </div>
+  <!-- Модалка добавления предмета -->
+  <div id="subject-modal" class="modal">
+    <div class="modal-content">
+      <button id="subj-close-btn" class="close-btn">&times;</button>
+      <h2>Добавить предмет</h2>
+      <form id="subject-form">
+        <div class="form-group">
+          <label for="subject-name">Название предмета</label>
+          <input id="subject-name" required>
+        </div>
+        <button type="submit" class="btn btn-primary">Создать</button>
+      </form>
+    </div>
+  </div>
+  <script>
+    async function checkAuth() {
+      const res = await fetch('/api/me', { credentials: 'include' });
+      if (!res.ok) return window.location.href = '/auth.html';
+      return true;
+    }
+    async function loadSubjects() {
+      const res = await fetch('/api/subjects', { credentials: 'include' });
+      const subjects = await res.json();
+      const container = document.getElementById('subjects-container');
+      container.innerHTML = subjects.map(s => `
+        <div class="subject-card" onclick="openTasks(${s.id})">
+          <div class="subject-title">${s.name}</div>
+          <div class="subject-info">Задач: ${s.taskCount || 0}</div>
+        </div>
+      `).join('');
+    }
+    function openTasks(subjectId) {
+      window.location.href = `/tasks.html?subjectId=${subjectId}`;
+    }
+    function openModal() { document.getElementById('subject-modal').style.display = 'flex'; }
+    function closeModal() { document.getElementById('subject-modal').style.display = 'none'; }
+    async function handleSubmit(e) {
+      e.preventDefault();
+      const name = document.getElementById('subject-name').value.trim();
+      if (!name) return;
+      const res = await fetch('/api/subjects', {
+        method: 'POST', headers: {'Content-Type': 'application/json'}, credentials: 'include',
+        body: JSON.stringify({ name })
+      });
+      if (res.ok) { closeModal(); await loadSubjects(); }
+      else alert('Ошибка при создании');
+    }
+    window.addEventListener('DOMContentLoaded', async () => {
+      if (await checkAuth()) {
+        document.getElementById('add-subject-btn').addEventListener('click', openModal);
+        document.getElementById('subj-close-btn').addEventListener('click', closeModal);
+        document.getElementById('subject-form').addEventListener('submit', handleSubmit);
+        await loadSubjects();
+      }
+    });
+  </script>
+</body>
+</html>

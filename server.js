@@ -2,7 +2,8 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
-const { sequelize, Problem, User } = require('./models');
+const { sequelize, User, Subject, Task, Group } = require('./models');
+
 
 const axios = require('axios');
 const bcrypt = require('bcrypt');
@@ -34,40 +35,171 @@ async function start() {
             }
         }));
 
-        // Получение задач по уровню сложности
+        app.use((req, res, next) => {
+            if (req.session && req.session.user) {
+                req.user = req.session.user;
+            }
+            next();
+        });
+
        
-
-
-        app.post('/api/judge0', async (req, res) => {
-            const { code, input, language_id } = req.body;
-
+        app.post('/api/subjects', isAuthenticated, isTeacher, async (req, res) => {
             try {
-                const response = await axios.post(
-                    'http://localhost:2358/submissions?base64_encoded=false&wait=true',
-                    {
-                        source_code: code,
-                        stdin: input || '',
-                        language_id
-                    },
-                    {
-                        headers: { 'Content-Type': 'application/json' }
-                    }
-                );
-
-                res.json(response.data);
+                const { name } = req.body;
+                const subject = await Subject.create({ name });
+                res.status(201).json(subject);
             } catch (error) {
-                console.error('Ошибка при работе с Judge0:', error.message);
-                res.status(500).json({ error: 'Ошибка выполнения через Judge0' });
+                res.status(500).json({ error: 'Ошибка при создании предмета' });
+            }
+            });
+
+
+
+
+
+        app.post('/api/tasks', isAuthenticated, async (req, res) => {
+            try {
+                const { title, description, deadline, priority, subjectId, assignedToId } = req.body;
+                
+                // Валидация данных
+                if (!title || !description || !deadline || !subjectId || !assignedToId) {
+                return res.status(400).json({ error: 'Все поля обязательны для заполнения' });
+                }
+
+                const task = await Task.create({
+                title,
+                description,
+                deadline: new Date(deadline),
+                priority: priority || 'medium',
+                subjectId,
+                authorId: req.session.user.id,
+                assignedToId,
+                status: 'todo',
+                rewardPoints: calculateRewardPoints(priority) // Добавим функцию расчета баллов
+                });
+
+                // Возвращаем задачу с связанными данными
+                const createdTask = await Task.findByPk(task.id, {
+                include: [
+                    { model: User, as: 'author' },
+                    { model: User, as: 'assignedTo' },
+                    { model: Subject }
+                ]
+                });
+
+                res.status(201).json(createdTask);
+            } catch (error) {
+                console.error('Ошибка создания задачи:', error);
+                res.status(500).json({ error: 'Ошибка при создании задачи' });
+            }
+        });
+
+        // Функция расчета баллов за задачу
+        function calculateRewardPoints(priority) {
+            const points = {
+                high: 30,
+                medium: 20,
+                low: 10
+            };
+            return points[priority] || 20;
+        }
+
+
+        app.get('/api/tasks', isAuthenticated, async (req, res) => {
+            try {
+                console.log('Текущий пользователь:', req.session.user);
+                const { subjectId, status, assigneeId, priority } = req.query;
+                const where = {};
+
+                // 🎓 Если пользователь — студент: показывать только свои задачи
+                if (req.session.user.role === 'student') {
+                where.assignedToId = req.session.user.id;
+                }
+
+                // 👨‍🏫 Если преподаватель и выбран конкретный студент
+                if (req.session.user.role === 'teacher' && assigneeId && assigneeId !== 'all') {
+                where.assignedToId = assigneeId;
+                }
+
+                // 📘 Фильтр по предмету
+                if (subjectId && subjectId !== 'all') {
+                where.subjectId = subjectId;
+                }
+
+                // ✅ Фильтр по статусу
+                if (status && status !== 'all') {
+                where.status = status;
+                }
+
+                // 🔥 Фильтр по приоритету (раньше его не было)
+                if (priority && priority !== 'all') {
+                where.priority = priority;
+                }
+
+                const tasks = await Task.findAll({
+                where,
+                include: [
+                    { model: User, as: 'author', attributes: ['id', 'username', 'role', 'score'] },
+                    { model: User, as: 'assignedTo', attributes: ['id', 'username', 'role', 'score'] },
+                    { model: Subject, attributes: ['id', 'name'] }
+                ],
+                order: [['deadline', 'ASC']]
+                });
+
+                // 🧾 Убедимся, что tasks — это массив
+                if (!Array.isArray(tasks)) {
+                console.error('Ожидался массив задач, но получен:', tasks);
+                return res.status(500).json({ error: 'Ошибка получения задач (неверный формат)' });
+                }
+
+                res.json(tasks);
+            } catch (err) {
+                console.error('Ошибка при GET /api/tasks:', err); 
+                res.status(500).json({ error: 'Ошибка при получении задач' });
             }
         });
 
 
-        function normalizeOutput(output) {
-            if (typeof output === 'object') {
-                output = JSON.stringify(output);
+        app.put('/api/tasks/:id/status', isAuthenticated, async (req, res) => {
+            try {
+                const task = await Task.findByPk(req.params.id);
+                if (!task) return res.status(404).json({ error: 'Задача не найдена' });
+                
+                task.status = req.body.status;
+                await task.save();
+                
+                // Начисление баллов при завершении
+                if (task.status === 'completed') {
+                const user = await User.findByPk(task.assignedToId);
+                user.score += task.rewardPoints;
+                await user.save();
+                }
+                
+                res.json(task);
+            } catch (error) {
+                res.status(500).json({ error: 'Ошибка при обновлении задачи' });
             }
-            return String(output).trim().replace(/\r/g, '').replace(/\s+$/gm, '');
+            });
+
+        app.get('/api/subjects', isAuthenticated, async (req, res) => {
+            try {
+                const subjects = await Subject.findAll();
+                res.json(subjects);
+            } catch (err) {
+                res.status(500).json({ error: 'Ошибка при получении предметов' });
+            }
+        });
+
+        // Добавьте middleware для проверки роли преподавателя
+        function isTeacher(req, res, next) {
+            if (req.session.user && (req.session.user.role === 'teacher' || req.session.user.role === 'admin')) {
+                return next();
+            }
+            return res.status(403).json({ error: 'Доступ запрещён' });
         }
+
+        
+
 
         function computeLevel(score) {
             const thresholds = [0, 100, 250, 500, 1000]; // можно расширить
@@ -82,104 +214,10 @@ async function start() {
         }
 
 
-        app.get('/api/problems', async (req, res) => {
-            try {
-                const difficulty = (req.query.difficulty || 'beginner').toLowerCase().trim();
-                const problems = await Problem.findAll({ where: { difficulty } });
-                res.json(problems);
-            } catch (err) {
-                console.error(err);
-                res.status(500).json({ error: 'Ошибка при получении задач' });
-            }
-        });
 
-        app.post('/api/add-problem', isAuthenticated, isAdmin, async (req, res) => {
-            try {
-                const { title, description, templateCode, testCases, difficulty } = req.body;
-
-                const problem = await Problem.create({
-                    title,
-                    description,
-                    templateCode,
-                    testCases,
-                    difficulty
-                });
-
-                res.status(201).json(problem);
-            } catch (error) {
-                console.error(error);
-                res.status(500).json({ error: 'Ошибка при добавлении задачи' });
-            }
-        });
-
-
-        app.post('/api/run-task-tests/:taskId', async (req, res) => {
-            const { taskId } = req.params;
-            const { code, language, input } = req.body;
-
-            try {
-                // Получаем задачу из базы
-                const task = await Problem.findByPk(taskId);
-                if (!task) return res.status(404).json({ error: 'Задача не найдена' });
-
-                // Парсим тесты из БД
-            let testCases = task.testCases;
-                if (!Array.isArray(testCases)) {
-                    return res.status(500).json({ error: 'testCases должно быть массивом' });
-                }
-
-                // Функция для преобразования входных данных теста в строку для stdin
-                function prepareInput(inputVal) {
-                if (Array.isArray(inputVal)) {
-                    return inputVal.join(' ') + '\n';
-                } else if (typeof inputVal === 'object' && inputVal !== null) {
-                    return Object.values(inputVal).join(' ') + '\n';
-                } else {
-                    return String(inputVal) + '\n';
-                }
-                }
-
-            
-
-                // Иначе запускаем все тесты из БД
-                const results = [];
-                for (const test of testCases) {
-                    const testInput = prepareInput(test.input);
-                    const expectedOutput = normalizeOutput(test.expected);
-
-                    const actualOutput = normalizeOutput(await runCodeOnJudge0({ code, language, input: testInput }));
-                    
-                    const passed = expectedOutput === actualOutput;
-                    
-                    results.push({
-                        input: testInput.trim(),
-                        expected: expectedOutput,
-                        output: actualOutput.trim(),
-                        passed
-                    });
-                }
-                
-                const allPassed = results.every(r => r.passed);
-
-                if (allPassed && req.session.user) {
-                    const user = await User.findByPk(req.session.user.id);
-                    if (user) {
-                        const reward = task.rewardPoints || 20; // по умолчанию 20, если поле есть
-                        user.score += reward;
-                        await user.save();
-                    }
-                }
-                
-                res.json(results);
-
-            } catch (err) {
-                console.error(err);
-                res.status(500).json({ error: 'Внутренняя ошибка сервера' });
-            }
-        });
 
         app.post('/api/register', async (req, res) => {
-            const { username, password } = req.body;
+            const { username, password, role } = req.body;
             const hash = await bcrypt.hash(password, saltRounds);
             try {
                 const user = await User.create({ username, passwordHash: hash });
@@ -213,6 +251,53 @@ async function start() {
 
         
 
+        app.get('/api/groups', isAuthenticated, async (req, res) => {
+            try {
+                const groups = await Group.findAll({
+                include: [
+                    {
+                    model: User,
+                    attributes: ['id', 'username'],
+                    through: { attributes: [] }
+                    }
+                ]
+                });
+                res.json(groups);
+            } catch (err) {
+                console.error(err);
+                res.status(500).json({ message: 'Ошибка при получении групп' });
+            }
+        });
+
+
+        // Создать новую группу
+        app.post('/api/groups', isAuthenticated, isTeacher, async (req, res) => {
+            try {
+                const { name } = req.body;
+                const group = await Group.create({ name });
+                res.status(201).json(group);
+            } catch (err) {
+                res.status(500).json({ error: 'Ошибка при создании группы' });
+            }
+        });
+
+        // Назначить студентов в группу
+        app.put('/api/groups/:id/users', isAuthenticated, isTeacher, async (req, res) => {
+            try {
+                const group = await Group.findByPk(req.params.id);
+                if (!group) return res.status(404).json({ error: 'Группа не найдена' });
+                const { userIds } = req.body; // [1,2,3]
+                await group.setUsers(userIds);
+                const updated = await Group.findByPk(group.id, {
+                include: [{ model: User, through: { attributes: [] }, attributes: ['id', 'username'] }]
+                });
+                res.json(updated);
+            } catch (err) {
+                res.status(500).json({ error: 'Ошибка при назначении пользователей' });
+            }
+        });
+
+
 
 
         
@@ -231,11 +316,11 @@ async function start() {
         }
 
         function isAuthenticated(req, res, next) {
-        if (req.session && req.session.user && req.session.user.id) {
-            return next();
+            if (req.session.user) return next();
+            return res.status(403).json({ message: 'Unauthorized' });
         }
-        return res.status(401).json({ error: 'Неавторизованный доступ' });
-    }
+
+
 
         app.get('/api/me', isAuthenticated, async (req, res) => {
             const user = await User.findByPk(req.session.user.id); // Sequelize
@@ -265,37 +350,17 @@ async function start() {
             res.sendFile(path.join(__dirname, 'public', 'tasks.html'));
         });
 
-        async function runCodeOnJudge0({ code, language, input }) {
-            const languageMap = {
-                python3: 71,
-                java: 62,
-                cpp: 54,
-                c: 50
-            };
-
-            const language_id = languageMap[language.toLowerCase()] || 71;
-
+        app.get('/api/users', isAuthenticated, isTeacher, async (req, res) => {
             try {
-                const response = await axios.post(
-                'http://localhost:2358/submissions?base64_encoded=false&wait=true',
-                {
-                    source_code: code,
-                    stdin: input || '',
-                    language_id
-                },
-                { headers: { 'Content-Type': 'application/json' } }
-                );
-
-                if (response.data.stdout !== null) return response.data.stdout;
-                if (response.data.compile_output) return response.data.compile_output;
-                if (response.data.stderr) return response.data.stderr;
-
-                return '';
+                const users = await User.findAll({
+                where: { role: 'student' },
+                attributes: ['id', 'username']
+                });
+                res.json(users);
             } catch (err) {
-                console.error('Ошибка Judge0:', err.message);
-                throw new Error('Ошибка вызова Judge0');
+                res.status(500).json({ error: 'Ошибка при получении пользователей' });
             }
-        }
+        });
 
 
         // Статические файлы

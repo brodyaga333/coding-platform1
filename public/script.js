@@ -1,332 +1,407 @@
-let editors = {};
+// script.js - Полная реализация (исправленная)
 
-function getDifficultyLabel(difficulty) {
-  const labels = {
-    beginner: 'Начинающий',
-    intermediate: 'Продвинутый',
-    expert: 'Эксперт'
+// Форматирование даты
+function formatDate(dateString) {
+  const options = {
+    day: 'numeric', month: 'numeric', year: 'numeric',
+    hour: '2-digit', minute: '2-digit'
   };
-  return labels[difficulty] || difficulty;
+  return new Date(dateString).toLocaleString('ru-RU', options);
 }
 
-function getLanguageMode(lang) {
-  const map = {
-    python3: 'python',
-    cpp: 'text/x-c++src',
-    c: 'text/x-csrc',
-    java: 'text/x-java'
-  };
-  return map[lang] || 'python';
+// Лейблы приоритета и статуса
+function getPriorityLabel(priority) {
+  const labels = { high: 'Высокий', medium: 'Средний', low: 'Низкий' };
+  return labels[priority] || priority;
+}
+function getStatusLabel(status) {
+  const labels = { todo: 'К выполнению', in_progress: 'В процессе', completed: 'Завершено' };
+  return labels[status] || status;
 }
 
-// загрузка задач
-async function loadTasks(difficulty = 'beginner') {
-  const container = document.getElementById('tasks-container');
-  container.innerHTML = 'Загрузка задач...';
-  editors = {}; // Очистка старых редакторов
+// Проверка авторизации и получение профиля
+async function checkAuth() {
+  const res = await fetch('/api/me', { credentials: 'include' });
+  if (!res.ok) {
+    window.location.href = '/auth.html';
+    return false;
+  }
+  const user = await res.json();
+  localStorage.setItem('user', JSON.stringify(user));
+
+  // Если на странице есть профиль, обновляем его
+  const usernameEl = document.getElementById('profile-username');
+  if (usernameEl) usernameEl.textContent = user.username;
+  const levelEl = document.getElementById('profile-level');
+  if (levelEl) levelEl.textContent = user.level;
+  const scoreEl = document.getElementById('profile-score');
+  if (scoreEl) scoreEl.textContent = user.score;
+  const nextEl = document.getElementById('profile-next');
+  if (nextEl) nextEl.textContent = user.nextLevelThreshold - user.score;
+  const levelImg = document.getElementById('profile-level-img');
+  if (levelImg) {
+    levelImg.src = `/images/levels/level${user.level}.png`;
+    levelImg.alt = `Уровень ${user.level}`;
+  }
+
+  return true;
+}
+
+// Роль и отображение UI
+function setupRoleBasedUI() {
+  const user = JSON.parse(localStorage.getItem('user') || '{}');
+  const btnCreate = document.getElementById('create-task-btn');
+  const filterAssignee = document.getElementById('assignee-filter');
+
+  if (btnCreate) btnCreate.style.display = 'block'; // ← показываем всем
+
+  if (user.role === 'teacher' || user.role === 'admin') {
+    const titleEl = document.getElementById('tasks-title');
+    if (titleEl) titleEl.textContent = 'Задачи студентов';
+    if (filterAssignee) filterAssignee.style.display = 'block';
+  } else {
+    const titleEl = document.getElementById('tasks-title');
+    if (titleEl) titleEl.textContent = 'Мои задачи';
+    if (filterAssignee) filterAssignee.style.display = 'none';
+  }
+}
+
+
+// Загрузка списка предметов
+async function loadSubjects() {
+  const res = await fetch('/api/subjects', { credentials: 'include' });
+  const subjects = await res.json();
+  const optAll = '<option value="all">Все предметы</option>';
+  const list = subjects.map(s => `<option value="${s.id}">${s.name}</option>`).join('');
+  const subjFilter = document.getElementById('subject-filter');
+  if (subjFilter) subjFilter.innerHTML = optAll + list;
+  const subjSelect = document.getElementById('task-subject');
+  if (subjSelect) subjSelect.innerHTML = '<option value="">-- Выберите предмет --</option>' + list;
+}
+
+// Загрузка списка студентов
+
+
+
+// Фильтр студентов для преподавателя
+async function loadStudentsForFilter() {
+  const role = localStorage.getItem('userRole');
+  if (role !== 'admin' && role !== 'teacher') return;
+  const res = await fetch('/api/users', { credentials: 'include' });
+  const users = await res.json();
+  const list = users.map(u => `<option value="${u.id}">${u.username}</option>`).join('');
+  const assigneeFilter = document.getElementById('assignee-filter');
+  if (assigneeFilter) assigneeFilter.innerHTML = '<option value="all">Все студенты</option>' + list;
+}
+
+// Загрузка и отображение задач
+async function loadTasks() {
+  // Получаем текущие значения фильтров
+  const subjectId = document.getElementById('subject-filter')?.value || 'all';
+  const status = document.getElementById('status-filter')?.value || 'all';
+  const priority = document.getElementById('priority-filter')?.value || 'all';
+
+  // Получаем данные пользователя
+  const user = JSON.parse(localStorage.getItem('user')) || {};
+  const role = user.role;
+  const userId = user.id;
+
+  // Формируем базовый URL с обязательными параметрами
+  let url = `/api/tasks?subjectId=${subjectId}&status=${status}`;
+
+  // Добавляем параметр приоритета, если он выбран
+  if (priority !== 'all') {
+    url += `&priority=${priority}`;
+  }
+
+  // Добавляем фильтр по назначенному пользователю
+  if (role === 'student' && userId) {
+    // Для студентов показываем только их задачи
+    url += `&assigneeId=${userId}`;
+  } else if (role === 'teacher' || role === 'admin') {
+    // Для преподавателей учитываем выбранного студента в фильтре
+    const selectedStudent = document.getElementById('assignee-filter')?.value;
+    if (selectedStudent && selectedStudent !== 'all') {
+      url += `&assigneeId=${selectedStudent}`;
+    }
+  }
 
   try {
-    const res = await fetch(`/api/problems?difficulty=${difficulty}`);
-    if (!res.ok) throw new Error(`Ошибка сервера: ${res.status}`);
+    console.log('Загрузка задач по URL:', url);
+    const res = await fetch(url, { credentials: 'include' });
+
+    if (!res.ok) {
+      const errorText = await res.text();
+      console.error('Ошибка загрузки задач:', res.status, errorText);
+      
+      // Показываем сообщение об ошибке
+      const container = document.getElementById('tasks-container');
+      container.innerHTML = `
+        <div class="error-message">
+          <i class="fas fa-exclamation-triangle"></i>
+          <p>Ошибка загрузки задач (код ${res.status})</p>
+        </div>`;
+      return;
+    }
 
     const tasks = await res.json();
+    console.log('Получены задачи:', tasks);
 
-    container.innerHTML = tasks.map(task => {
-      const textareaId = `gen-code-${task.id}`;
-      const langSelectId = `gen-lang-${task.id}`;
-      const resultId = `gen-result-${task.id}`;
+    const container = document.getElementById('tasks-container');
+    
+    // Проверяем, что получили массив задач
+    if (!Array.isArray(tasks)) {
+      console.error('Ожидался массив задач, получено:', tasks);
+      container.innerHTML = `
+        <div class="error-message">
+          <i class="fas fa-exclamation-triangle"></i>
+          <p>Ошибка формата данных</p>
+        </div>`;
+      return;
+    }
 
-      return `
-        <div class="task" id="task-${task.id}">
-          <div class="difficulty ${task.difficulty}">${getDifficultyLabel(task.difficulty)}</div>
-          <h3>${task.title}</h3>
-          <p>${task.description}</p>
-          <pre>${task.templateCode.replace(/\\n/g, '\n')}</pre>
-          <textarea id="${textareaId}">${task.templateCode}</textarea><br>
-          <select id="${langSelectId}" onchange="updateEditorMode(${task.id})">
-            <option value="python3">Python 3</option>
-            <option value="cpp">C++</option>
-            <option value="c">C</option>
-            <option value="java">Java</option>
-          </select>
-          <button onclick="compileWithJudge0(${task.id})">▶ Проверить</button>
-          <div id="${resultId}" class="result"></div>
-        </div>
-      `;
-    }).join('');
+    // Если задач нет - показываем соответствующее сообщение
+    if (tasks.length === 0) {
+      container.innerHTML = `
+        <div class="no-tasks">
+          <i class="fas fa-tasks"></i>
+          <p>Нет задач по выбранным фильтрам</p>
+        </div>`;
+      return;
+    }
 
-    // Инициализируем CodeMirror
-    tasks.forEach(task => {
-        const textarea = document.getElementById(`gen-code-${task.id}`);
-        const langSelect = document.getElementById(`gen-lang-${task.id}`);
-        const initialLang = langSelect.value || 'python3'; // язык из селекта
-
-        const editor = CodeMirror.fromTextArea(textarea, {
-            lineNumbers: true,
-            mode: getLanguageMode(initialLang),  // выставляем правильный режим
-            theme: 'default'
-        });
-
-        editors[task.id] = editor;
-    });
-
+    // Рендерим задачи
+    container.innerHTML = tasks.map(renderTaskCard).join('');
+    
   } catch (err) {
-    container.innerHTML = `Ошибка: ${err.message}`;
-    console.error(err);
+    console.error('Ошибка в loadTasks:', err);
+    const container = document.getElementById('tasks-container');
+    container.innerHTML = `
+      <div class="error-message">
+        <i class="fas fa-exclamation-triangle"></i>
+        <p>Ошибка соединения: ${err.message}</p>
+      </div>`;
   }
 }
 
-function isAuthenticated(req, res, next) {
-  console.log('isAuthenticated start');
-  if (req.session.user) {
-    console.log('Пользователь аутентифицирован, идём дальше');
-    return next();
+
+
+
+// Обновление статуса задачи
+async function updateTaskStatus(id, status) {
+  await fetch(`/api/tasks/${id}/status`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify({ status })
+  });
+  await loadTasks();
+}
+
+// Рендер карточек задач
+function renderTaskCard(task) {
+  // Проверяем наличие обязательных полей
+  if (!task || !task.id) {
+    console.error('Некорректная задача:', task);
+    return '';
   }
-  console.log('Пользователь НЕ аутентифицирован, отдаём 401');
-  return res.status(401).json({ error: 'Требуется вход' });
-}
 
+  // Подготавливаем данные для отображения
+  const subjectName = task.Subject?.name || 'Без предмета';
+  const assignedToName = task.assignedTo?.username || 'Не назначено';
+  const deadlineFormatted = task.deadline ? formatDate(task.deadline) : 'Нет срока';
+  const priorityLabel = getPriorityLabel(task.priority || 'medium');
+  const statusLabel = getStatusLabel(task.status || 'todo');
 
-function isAdmin(req, res, next) {
-  if (req.session.user?.role === 'admin') {
-    return next();
+  // Определяем доступные действия в зависимости от статуса
+  let actionsHTML = '';
+  if (task.status !== 'completed') {
+    actionsHTML = `
+      <div class="task-actions">
+        <button onclick="updateTaskStatus(${task.id}, 'in_progress')" 
+                class="btn btn-warning">
+          <i class="fas fa-play"></i> В процессе
+        </button>
+        <button onclick="updateTaskStatus(${task.id}, 'completed')" 
+                class="btn btn-success">
+          <i class="fas fa-check"></i> Завершить
+        </button>
+      </div>`;
   }
-  return res.status(403).json({ error: 'Только для админов' });
-}
 
-function updateEditorMode(taskId) {
-    const lang = document.getElementById(`gen-lang-${taskId}`).value;
-    const mode = getLanguageMode(lang);
-    const editor = editors[taskId];
-    if (editor) editor.setOption('mode', mode);
-}
-
-// компиляция через Judge0
-async function compileWithJudge0(taskId) {
-  const code = editors[taskId]?.getValue() || '';
-  const language = document.getElementById(`gen-lang-${taskId}`).value;
-  const resultDiv = document.getElementById(`gen-result-${taskId}`);
-
-  resultDiv.innerHTML = '⏳ Выполняются тесты...';
-
-  try {
-    const res = await fetch(`/api/run-task-tests/${taskId}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ code, language })
-    });
-
-    if (!res.ok) throw new Error(`Ошибка сервера: ${res.status} ${await res.text()}`);
-    const results = await res.json();
-
-    resultDiv.innerHTML = results.map(test => `
-      <div style="background:${test.passed ? '#d4edda' : '#f8d7da'};padding:10px;margin-bottom:5px;">
-        <strong>Ввод:</strong> <pre>${test.input}</pre>
-        <strong>Ожидалось:</strong> <pre>${test.expected}</pre>
-        <strong>Получено:</strong> <pre>${test.output}</pre>
-        <strong>Результат:</strong> ${test.passed ? '✅ Пройден' : '❌ Не пройден'}
+  // Возвращаем HTML карточки задачи
+  return `
+    <div class="task-card ${task.priority || 'medium'}" data-task-id="${task.id}">
+      <div class="task-header">
+        <h3 class="task-title">${task.title || 'Без названия'}</h3>
+        <span class="task-priority ${task.priority || 'medium'}">
+          ${priorityLabel}
+        </span>
       </div>
-    `).join('');
-  } catch (err) {
-    console.error(err);
-    resultDiv.innerHTML = `<span style="color:red;">❌ Ошибка: ${err.message}</span>`;
+      
+      <div class="task-description">
+        ${task.description || 'Нет описания'}
+      </div>
+      
+      <div class="task-meta">
+        <div><i class="fas fa-book"></i> ${subjectName}</div>
+        <div><i class="fas fa-user-graduate"></i> ${assignedToName}</div>
+        <div><i class="fas fa-calendar-alt"></i> ${deadlineFormatted}</div>
+        <div class="task-status ${task.status || 'todo'}">
+          <i class="fas fa-circle"></i> ${statusLabel}
+        </div>
+      </div>
+      
+      ${actionsHTML}
+    </div>
+  `;
+}
+
+// Модалка
+function openModal() {
+  const m = document.getElementById('task-modal');
+  if (m) {
+    console.log('Открываем модалку');
+    m.style.display = 'flex';
+    m.style.alignItems = 'center';
+    m.style.justifyContent = 'center';
+  }
+}
+function closeModal() {
+  const m = document.getElementById('task-modal');
+  if (m) {
+    console.log('Закрываем модалку');
+    m.style.display = 'none';
   }
 }
 
-async function login(e) {
+// Обработчик создания задачи
+async function handleTaskSubmit(e) {
   e.preventDefault();
-  const form = e.target;
-  const data = {
-    username: form.username.value,
-    password: form.password.value
+
+  const user = JSON.parse(localStorage.getItem('user') || '{}');
+
+  const taskData = {
+    title: document.getElementById('task-title').value,
+    description: document.getElementById('task-description').value,
+    deadline: document.getElementById('task-deadline').value,
+    priority: document.getElementById('task-priority').value,
+    subjectId: document.getElementById('task-subject').value,
+    assignedToId: document.getElementById('task-assignee').value
   };
 
-  const res = await fetch('/api/login', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    credentials: 'include', // Добавьте эту строку
-    body: JSON.stringify(data)
-  });
-
-  const msg = document.getElementById('login-msg');
-  if (res.ok) {
-    window.location.href = '/tasks.html'; // Исправьте редирект
-  } else {
-    const err = await res.json();
-    msg.textContent = err.error || 'Ошибка входа';
+  // Если студент — автоматически назначаем задачу себе
+  if (user.role === 'student') {
+    taskData.assignedToId = user.id;
   }
-}
 
-async function checkAuth() {
-    const res = await fetch('/api/me');
-    if (!res.ok) {
-        window.location.href = '/auth.html';
-        return false;
-    }
-
-    const user = await res.json();
-    console.log('Response user:', user);
-
-    const score = Number(user.score);
-    const level = Number(user.level);
-    const nextLevelThreshold = Number(user.nextLevelThreshold);
-
-    console.log({score, level, nextLevelThreshold});
-
-    document.getElementById('profile-username').textContent = user.username;
-    document.getElementById('profile-level').textContent = level;
-    document.getElementById('profile-score').textContent = score;
-    document.getElementById('profile-next').textContent = nextLevelThreshold - score;
-
-    localStorage.setItem('username', user.username);
-    localStorage.setItem('level', level);
-    localStorage.setItem('score', score);
-    localStorage.setItem('nextLevel', nextLevelThreshold);
-
-    // Здесь вставь путь к картинке уровня:
-    const levelImg = document.getElementById('profile-level-img');
-    // Предположим, что у тебя картинки лежат в /images/levels/level1.png, level2.png и т.д.
-    levelImg.src = `/images/levels/level${level}.png`;
-    levelImg.alt = `Уровень ${level}`;
-
-    if (user.role === 'admin') {
-      const openBtn = document.getElementById('open-admin-btn');
-      openBtn.style.display = 'block';
-
-      openBtn.addEventListener('click', showAdminPanel); // ✅ Показывать форму только при клике
-      document.getElementById('add-task-form').addEventListener('submit', handleAddTask);
-    }
-
-    return true;
-}
-
-function computeLevel(score) {
-    score = Number(score);
-    const levelThresholds = [0, 100, 250, 500, 1000]; // можно расширить
-    let level = 1;
-
-    for (let i = 0; i < levelThresholds.length; i++) {
-        if (score >= levelThresholds[i]) {
-        level = i + 1;
-        }
-    }
-
-    const nextLevelThreshold = levelThresholds[level] || (score + 100);
-    return { level, nextLevelThreshold };
-}
-
-
-
-// функции для admin
-function showAdminPanel() {
-  document.getElementById('admin-panel').style.display = 'block';
-  document.getElementById('admin-panel-overlay').style.display = 'block';
-}
-
-function closeAdminPanel() {
-  document.getElementById('admin-panel').style.display = 'none';
-  document.getElementById('admin-panel-overlay').style.display = 'none';
-}
-
-function addTestCase() {
-    const container = document.getElementById('test-cases');
-    const newTest = document.createElement('div');
-    newTest.className = 'test-case';
-    newTest.innerHTML = `
-        <input type="text" placeholder="Ввод" class="test-input">
-        <input type="text" placeholder="Ожидаемый вывод" class="test-expected">
-        <button type="button" onclick="removeTestCase(this)">×</button>
-    `;
-    container.appendChild(newTest);
-}
-
-function removeTestCase(button) {
-    button.parentElement.remove();
-}
-
-async function handleAddTask(e) {
-    e.preventDefault();
-
-    const form = e.target;
-    const formData = new FormData(form);
-    const data = Object.fromEntries(formData.entries());
-
-    try {
-        data.testCases = JSON.parse(data.testCases);
-    } catch (err) {
-        alert('Ошибка в JSON тестов');
-        return;
-    }
-
-    const res = await fetch('/api/add-problem', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify(data)
+  try {
+    const res = await fetch('/api/tasks', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify(taskData)
     });
 
-    const result = await res.json();
-
-    const resultDiv = document.getElementById('add-problem-result');
     if (res.ok) {
-        resultDiv.textContent = '✅ Задача успешно добавлена!';
-        form.reset();
+      closeModal();
+      e.target.reset();
+      await loadTasks();
     } else {
-        resultDiv.textContent = '❌ Ошибка: ' + (result.error || 'неизвестная');
+      const err = await res.json();
+      alert('Ошибка при создании задачи: ' + (err.error || res.statusText));
     }
-}
-
-
-
-
-
-function showProfile() {
-    document.getElementById('profile-details').style.display = 'block';
-}
-
-function hideProfile() {
-    document.getElementById('profile-details').style.display = 'none';
-}
-
-
-
-
-function setupProfileToggle() {
-  const miniProfile = document.getElementById('mini-profile');
-  const fullProfile = document.getElementById('full-profile');
-  const closeBtn = document.getElementById('close-profile');
-
-  miniProfile.addEventListener('click', () => {
-    fullProfile.classList.toggle('hidden');
-  });
-
-  closeBtn.addEventListener('click', () => {
-    fullProfile.classList.add('hidden');
-  });
-
-  // Закрытие по клику вне
-  document.addEventListener('click', (event) => {
-    if (!fullProfile.contains(event.target) && !miniProfile.contains(event.target)) {
-      fullProfile.classList.add('hidden');
-    }
-  });
-}
-
-
-
-window.onload = async () => {
-  ;
-  const authorized = await checkAuth();
-  if (authorized) {
-    loadTasks('beginner');
-
-    
-    // Назначаем обработчик только если форма уже есть
-    const form = document.getElementById('add-task-form');
-    if (form) {
-      form.addEventListener('submit', handleAddTask);
-    }
-
+  } catch (err) {
+    console.error('Ошибка при создании задачи:', err);
+    alert('Произошла ошибка при создании задачи');
   }
-};
+}
 
+// Инициализация при загрузке страницы
+window.addEventListener('DOMContentLoaded', async () => {
+  if (await checkAuth()) {
+    setupRoleBasedUI();
+    await loadSubjects();
+    
+    
+    await loadStudentsForFilter();
+    await loadTasks();
+
+    // Навигация по вкладкам
+    document.querySelectorAll('.menu-item').forEach(item => {
+      item.addEventListener('click', () => {
+        document.querySelectorAll('.menu-item').forEach(i => i.classList.remove('active'));
+        item.classList.add('active');
+        switch(item.textContent.trim()) {
+          case 'Задачи': showSection('tasks-section'); break;
+          case 'Предметы': showSection('subjects-section'); loadSubjectsTab(); break;
+          case 'Прогресс': showSection('progress-section'); loadProgressTab(); break;
+        }
+      });
+    });
+
+    // Кнопки и формы
+    const btn = document.getElementById('create-task-btn');
+    if (btn) btn.addEventListener('click', openModal);
+    const closeBtn = document.querySelector('.close-btn');
+    if (closeBtn) closeBtn.addEventListener('click', closeModal);
+    const form = document.getElementById('task-form');
+    if (form) form.addEventListener('submit', handleTaskSubmit);
+    window.addEventListener('click', e => {
+      const modal = document.getElementById('task-modal');
+      if (e.target === modal) closeModal();
+    });
+
+    // Предметы
+    const addSubjBtn = document.getElementById('add-subject-btn');
+    const subjModalClose = document.getElementById('subj-close-btn');
+    const subjForm = document.getElementById('subject-form');
+    if (addSubjBtn) addSubjBtn.addEventListener('click', openSubjectModal);
+    if (subjModalClose) subjModalClose.addEventListener('click', closeSubjectModal);
+    if (subjForm) subjForm.addEventListener('submit', handleSubjectSubmit);
+
+    // Группы (placeholder)
+    // TODO: добавить загрузку и выбор групп
+  }
+});
+
+// Функции для вкладки "Предметы"
+function showSection(id) {
+  document.getElementById('tasks-section').style.display = (id==='tasks-section'? 'block':'none');
+  document.getElementById('subjects-section').style.display = (id==='subjects-section'? 'block':'none');
+  document.getElementById('progress-section').style.display = (id==='progress-section'? 'block':'none');
+}
+
+async function loadSubjectsTab() {
+  const res = await fetch('/api/subjects', { credentials: 'include' });
+  const subjects = await res.json();
+  const list = document.getElementById('subjects-list');
+  if (list) {
+    list.innerHTML = subjects.map(s => `<li>${s.name}</li>`).join('');
+  }
+}
+
+function openSubjectModal() {
+  const m = document.getElementById('subject-modal');
+  if (m) m.style.display='flex';
+}
+function closeSubjectModal() {
+  const m = document.getElementById('subject-modal');
+  if (m) m.style.display='none';
+}
+
+async function handleSubjectSubmit(e) {
+  e.preventDefault();
+  const name = document.getElementById('subject-name').value;
+  const res = await fetch('/api/subjects', {
+    method:'POST', headers:{'Content-Type':'application/json'}, credentials:'include',
+    body: JSON.stringify({name})
+  });
+  if (res.ok) {
+    closeSubjectModal();
+    await loadSubjectsTab();
+    await loadSubjects();
+  } else alert('Ошибка создания предмета');
+}
+
+// TODO: функции для вкладки "Прогресс" и работу с группами
